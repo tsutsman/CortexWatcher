@@ -1,0 +1,40 @@
+- id: ssh_bruteforce
+  title: "Підозріла кількість невдалих SSH входів"
+  description: "Виявлення можливого brute-force по SSH на підставі частоти помилок автентифікації."
+  severity: 6
+  patterns:
+    - "Failed password"
+    - "authentication failure"
+  filters:
+    host: []
+    app:
+      - "sshd"
+  tags:
+    - security
+    - ssh
+
+- id: nginx_5xx_burst
+  title: "Сплеск помилок 5xx у NGINX"
+  description: "Зафіксовано значне зростання 5xx відповідей."
+  severity: 5
+  patterns:
+    - " 5\\d{2} "
+  filters:
+    host: []
+    app:
+      - "nginx"
+  tags:
+    - availability
+
+- id: wazuh_high_level
+  title: "Високий рівень алерту від Wazuh"
+  description: "Отримано повідомлення рівня >= 10."
+  severity: 7
+  patterns:
+    - ""
+  filters:
+    host: []
+    app: []
+  tags:
+    - wazuh
+    - security

@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortexwatcher"
+version = "0.1.0"
+description = "Телеграм-бот і платформа для збору та аналітики логів"
+readme = "README.md"
+authors = [{name = "CortexWatcher Team"}]
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "aiogram>=3.2.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.24.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "psycopg[binary]>=3.1.12",
+    "alembic>=1.12.0",
+    "pydantic-settings>=2.0.3",
+    "loguru>=0.7.0",
+    "redis>=5.0.1",
+    "rq>=1.15.1",
+    "python-multipart>=0.0.6",
+    "prometheus_client>=0.17.0",
+    "orjson>=3.9.10",
+    "aiofiles>=23.1.0",
+    "httpx>=0.25.0",
+    "python-dateutil>=2.8.2",
+    "pytz>=2023.3",
+    "aiosqlite>=0.19.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.9",
+    "black>=23.12.1",
+    "mypy>=1.8.0",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "B", "UP", "N", "ANN", "S", "ASYNC", "COM", "C4", "SIM", "TID", "PL"]
+ignore = ["ANN101", "ANN102", "ANN401", "S104"]
+fix = true
+
+[tool.ruff.per-file-ignores]
+"tests/*" = ["ANN201", "S101"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.11"
+plugins = []
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+mypy_path = "src"
+
+[tool.coverage.run]
+source = ["cortexwatcher"]
+branch = true
+parallel = true
+

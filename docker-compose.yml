@@ -1,0 +1,92 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: cortex
+      POSTGRES_USER: cortex
+      POSTGRES_PASSWORD: cortex
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "cortex"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+
+  bot:
+    build:
+      context: .
+      dockerfile: docker/bot/Dockerfile
+    env_file: .env
+    depends_on:
+      - redis
+      - api
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  ingestor:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    command: ["python", "-m", "cortexwatcher.workers.ingestor"]
+    restart: unless-stopped
+
+  analyzer:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    command: ["python", "-m", "cortexwatcher.workers.tasks", "analyzer"]
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    environment:
+      CLICKHOUSE_DB: cortex
+    volumes:
+      - ch_data:/var/lib/clickhouse
+    expose:
+      - "8123"
+    profiles:
+      - clickhouse
+
+  grafana:
+    image: grafana/grafana:10.3.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    profiles:
+      - monitoring
+
+volumes:
+  pg_data:
+  ch_data:

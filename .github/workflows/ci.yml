@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "codex/**"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Встановити Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Встановити залежності
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+      - name: Ruff
+        run: ruff check src tests
+      - name: Black
+        run: black --check src tests
+      - name: Mypy
+        run: mypy src
+      - name: Pytest
+        env:
+          TG_BOT_TOKEN: test
+          ALLOWED_CHAT_IDS: "1"
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          REDIS_URL: redis://localhost:6379/0
+          API_AUTH_TOKEN: token
+          CLICKHOUSE: "1"
+          CLICKHOUSE_URL: http://localhost
+          RULES_PATH: src/cortexwatcher/rules/sample_rules.yaml
+        run: pytest
