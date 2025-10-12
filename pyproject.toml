@@ -39,6 +39,7 @@ dev = [
     "ruff>=0.1.9",
     "black>=23.12.1",
     "mypy>=1.8.0",
+    "pip-audit>=2.6.1",
 ]
 
 [tool.black]
