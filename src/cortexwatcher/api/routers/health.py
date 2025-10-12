@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import inspect
+import time
 from collections.abc import Iterable
 from typing import Any
 
@@ -80,9 +81,16 @@ async def _check_redis(settings: Settings) -> tuple[dict[str, Any], dict[str, An
 
     try:
         metrics_raw = await client.hgetall("cortexwatcher:metrics")
+        metrics_values = _decode_metrics(metrics_raw)
+        metrics_values["events_rate_1m"] = await _calculate_rate(
+            client, "cortexwatcher:metrics:events_window", 60
+        )
+        metrics_values["alerts_rate_1m"] = await _calculate_rate(
+            client, "cortexwatcher:metrics:alerts_window", 60
+        )
         metrics_state = {
             "status": "ok",
-            "values": {key: _safe_int(value) for key, value in metrics_raw.items()},
+            "values": metrics_values,
         }
     except RedisError as exc:  # pragma: no cover - залежить від середовища
         metrics_state = {"status": "degraded", "detail": str(exc), "values": {}}
@@ -152,6 +160,44 @@ def _safe_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _decode_metrics(metrics_raw: dict[str, Any]) -> dict[str, Any]:
+    numeric_keys = {
+        "events_total",
+        "alerts_total",
+        "avg_ingest_latency_ms",
+        "max_ingest_latency_ms",
+        "last_batch_size",
+    }
+    decoded: dict[str, Any] = {}
+    for key, value in metrics_raw.items():
+        if key in numeric_keys:
+            decoded[key] = _safe_int(value)
+        else:
+            decoded[key] = value
+    for key in numeric_keys:
+        decoded.setdefault(key, 0)
+    return decoded
+
+
+async def _calculate_rate(client: AsyncRedis, key: str, window_seconds: int) -> int:
+    now = time.time()
+    cutoff = now - window_seconds
+    try:
+        await client.zremrangebyscore(key, 0, cutoff)
+        members = await client.zrange(key, 0, -1)
+    except RedisError:  # pragma: no cover - залежить від середовища
+        return 0
+
+    total = 0
+    for member in members:
+        try:
+            _, count, _ = member.split(":")
+            total += int(count)
+        except (ValueError, TypeError):  # pragma: no cover - захист від пошкоджених даних
+            continue
+    return total
 
 
 __all__ = ["router"]

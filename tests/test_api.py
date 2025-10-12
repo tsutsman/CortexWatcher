@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -52,6 +53,19 @@ def test_status_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         def from_url(cls, url: str, **_: object) -> "DummyRedis":
             instance = cls()
             instance.url = url
+            instance._metrics = {
+                "events_total": "5",
+                "alerts_total": "2",
+                "avg_ingest_latency_ms": "12",
+                "max_ingest_latency_ms": "42",
+                "last_batch_size": "2",
+                "last_event_ts": "2024-01-01T00:00:00+00:00",
+                "last_alert_ts": "2024-01-01T00:01:00+00:00",
+            }
+            instance._zsets: dict[str, list[tuple[str, float]]] = {
+                "cortexwatcher:metrics:events_window": [("1000:5:deadbeef", time.time())],
+                "cortexwatcher:metrics:alerts_window": [("2000:2:feedface", time.time())],
+            }
             return instance
 
         async def ping(self) -> bool:
@@ -63,7 +77,23 @@ def test_status_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
 
         async def hgetall(self, key: str) -> dict[str, str]:
             assert key == "cortexwatcher:metrics"
-            return {"events": "5", "alerts": "2"}
+            return self._metrics
+
+        async def zremrangebyscore(self, key: str, _min: float, max_score: float) -> int:
+            items = self._zsets.get(key, [])
+            retained = [(member, score) for member, score in items if score > max_score]
+            removed = len(items) - len(retained)
+            self._zsets[key] = retained
+            return removed
+
+        async def zrange(self, key: str, start: int, end: int) -> list[str]:
+            assert start == 0 and end == -1
+            return [member for member, _ in self._zsets.get(key, [])]
+
+        async def expire(self, key: str, ttl: int) -> bool:
+            assert key in self._zsets
+            assert ttl > 0
+            return True
 
         def close(self) -> None:
             pass
@@ -96,7 +126,11 @@ def test_status_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     assert body["status"] == "ok"
     assert body["components"]["redis"]["status"] == "ok"
     assert body["components"]["queue"]["backlog"] == 3
-    assert body["components"]["metrics"]["values"]["events"] == 5
+    metrics = body["components"]["metrics"]["values"]
+    assert metrics["events_total"] == 5
+    assert metrics["alerts_total"] == 2
+    assert metrics["events_rate_1m"] == 5
+    assert metrics["alerts_rate_1m"] == 2
     assert body["components"]["clickhouse"]["status"] == "ok"
 
 

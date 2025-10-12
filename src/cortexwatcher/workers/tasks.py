@@ -4,8 +4,11 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timezone
+from statistics import mean
+from time import time
+from typing import Any, Iterable
+from uuid import uuid4
 
 from redis import Redis
 from redis.exceptions import RedisError
@@ -76,7 +79,7 @@ async def _process_ingest(source: str, payload: dict[str, Any]) -> dict[str, Any
     for item in normalized:
         item.raw_id = raw_id or 0
     await storage.store_normalized_batch(normalized)
-    _bump_metrics(len(normalized))
+    _bump_metrics(len(normalized), _calculate_latencies(normalized, received_at))
     return {"stored": len(normalized), "format": fmt}
 
 
@@ -98,9 +101,63 @@ def _parse(fmt: str, content: str) -> list[dict[str, Any]]:
     return []
 
 
-def _bump_metrics(count: int) -> None:
+def _calculate_latencies(logs: Iterable[LogNormalized], received_at: datetime) -> list[float]:
+    latencies: list[float] = []
+    for log in logs:
+        ts = getattr(log, "ts", None)
+        if not isinstance(ts, datetime):
+            continue
+        normalized_ts = ts
+        if ts.tzinfo is not None:
+            normalized_ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
+        latency_ms = (received_at - normalized_ts).total_seconds() * 1000
+        if latency_ms >= 0:
+            latencies.append(latency_ms)
+    return latencies
+
+
+def _bump_metrics(count: int, latencies: Iterable[float]) -> None:
+    if count <= 0:
+        return
+
+    latencies_list = list(latencies)
+    avg_latency = int(mean(latencies_list)) if latencies_list else 0
+    max_latency = int(max(latencies_list)) if latencies_list else 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    timestamp = time()
+    member_id = f"{int(timestamp * 1000)}:{count}:{uuid4().hex}"
     try:
-        redis_conn.hincrby("cortexwatcher:metrics", "events", count)
+        pipe = redis_conn.pipeline()
+        pipe.hincrby("cortexwatcher:metrics", "events_total", count)
+        pipe.hset(
+            "cortexwatcher:metrics",
+            mapping={
+                "last_event_ts": now_iso,
+                "last_batch_size": count,
+                "avg_ingest_latency_ms": avg_latency,
+                "max_ingest_latency_ms": max_latency,
+            },
+        )
+        pipe.zadd("cortexwatcher:metrics:events_window", {member_id: timestamp})
+        pipe.zremrangebyscore("cortexwatcher:metrics:events_window", 0, timestamp - 600)
+        pipe.expire("cortexwatcher:metrics:events_window", 3600)
+        pipe.execute()
+    except RedisError:
+        pass
+
+
+def _bump_alert_metrics() -> None:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    timestamp = time()
+    member_id = f"{int(timestamp * 1000)}:1:{uuid4().hex}"
+    try:
+        pipe = redis_conn.pipeline()
+        pipe.hincrby("cortexwatcher:metrics", "alerts_total", 1)
+        pipe.hset("cortexwatcher:metrics", mapping={"last_alert_ts": now_iso})
+        pipe.zadd("cortexwatcher:metrics:alerts_window", {member_id: timestamp})
+        pipe.zremrangebyscore("cortexwatcher:metrics:alerts_window", 0, timestamp - 600)
+        pipe.expire("cortexwatcher:metrics:alerts_window", 3600)
+        pipe.execute()
     except RedisError:
         pass
 
@@ -111,8 +168,10 @@ def _status_snapshot() -> dict[str, Any]:
     except RedisError:
         metrics = {}
     return {
-        "events_per_min": int(metrics.get(b"events", 0)) if metrics else 0,
-        "alerts": int(metrics.get(b"alerts", 0)) if metrics else 0,
+        "events_total": int(metrics.get(b"events_total", 0)) if metrics else 0,
+        "alerts_total": int(metrics.get(b"alerts_total", 0)) if metrics else 0,
+        "avg_ingest_latency_ms": int(metrics.get(b"avg_ingest_latency_ms", 0)) if metrics else 0,
+        "max_ingest_latency_ms": int(metrics.get(b"max_ingest_latency_ms", 0)) if metrics else 0,
     }
 
 
@@ -161,10 +220,7 @@ async def _evaluate_log(
             evidence_json={"log_id": log.id, "msg": log.msg},
         )
         await notifier.persist_and_notify(alert)
-        try:
-            redis_conn.hincrby("cortexwatcher:metrics", "alerts", 1)
-        except RedisError:
-            pass
+        _bump_alert_metrics()
     anomaly, score = detector.update(log.host, log.app, log.severity, log.ts)
     if anomaly:
         anomaly_obj = Anomaly(
