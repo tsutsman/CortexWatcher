@@ -11,6 +11,7 @@ from aiogram.filters import Command
 from aiogram.types import Document, Message
 
 from cortexwatcher.bot.security import RateLimiter, is_chat_allowed
+from cortexwatcher.bot.validation import AttachmentValidationError, validate_document
 from cortexwatcher.logging import logger
 from cortexwatcher.parsers import detect_format, parse_gelf, parse_json_lines, parse_syslog, parse_wazuh_alert
 from cortexwatcher.workers.tasks import enqueue_ingest
@@ -72,6 +73,17 @@ async def _handle_document(message: Message, document: Document) -> None:
         return
     file = await message.bot.download(document)
     content = file.read()
+    try:
+        await validate_document(document, content)
+    except AttachmentValidationError as error:
+        logger.warning(
+            "Документ не пройшов перевірку",
+            chat_id=message.chat.id,
+            message_id=message.message_id,
+            reason=error.user_message,
+        )
+        await message.reply(error.user_message)
+        return
     summary = await _summarize(content.decode(errors="ignore"))
     await message.reply(summary, parse_mode=ParseMode.MARKDOWN)
     enqueue_ingest(
@@ -101,6 +113,10 @@ async def _handle_text(message: Message, text: str) -> None:
 async def _summarize(content: str) -> str:
     """Повертає коротку характеристику логів."""
 
+    return await asyncio.to_thread(_summarize_sync, content)
+
+
+def _summarize_sync(content: str) -> str:
     fmt = detect_format(content)
     parsed: list[dict[str, Any]]
     if fmt == "syslog":
