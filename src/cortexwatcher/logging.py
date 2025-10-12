@@ -5,13 +5,15 @@ import json
 import sys
 from typing import Any, Dict
 
+import loguru
+
 from loguru import logger
 
 
 class JsonFormatter:
     """Простий JSON-форматер для loguru."""
 
-    def __call__(self, message: "loguru.Message") -> str:  # type: ignore[name-defined]
+    def __call__(self, message: loguru.Message) -> str:  # type: ignore[name-defined]
         record = message.record
         payload: Dict[str, Any] = {
             "time": record["time"].strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
