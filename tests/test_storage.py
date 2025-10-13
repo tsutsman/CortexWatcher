@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import os
 from datetime import datetime, timedelta, timezone
-from typing import AsyncIterator, Iterator
+from typing import TYPE_CHECKING, AsyncIterator, Iterator
 
 import pytest
 from sqlalchemy import text
@@ -26,6 +26,10 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("API_AUTH_TOKEN", "token")
 os.environ.setdefault("CLICKHOUSE", "0")
 os.environ.setdefault("RULES_PATH", "src/cortexwatcher/rules/sample_rules.yaml")
+
+
+if TYPE_CHECKING:
+    from cortexwatcher.storage.postgres import PostgresStorage
 
 
 @pytest.fixture(scope="module")

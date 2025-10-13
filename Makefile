@@ -3,7 +3,7 @@ POETRY?=
 TYPECHECK_PATHS=src/cortexwatcher/api/main.py \
 src/cortexwatcher/api/routers/health.py \
 src/cortexwatcher/api/routers/metrics.py
-COVERAGE_THRESHOLD?=52
+COVERAGE_THRESHOLD?=65
 PIP_AUDIT_IGNORES?=GHSA-4xh5-x5gv-qwph
 
 .PHONY: setup lint format format-check typecheck test test-coverage security-check ci run migrate seed down clean pre-commit

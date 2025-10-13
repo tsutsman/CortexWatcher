@@ -10,6 +10,7 @@ build/
 .idea/
 .vscode/
 .coverage
+coverage.xml
 htmlcov/
 .eggs/
 *.egg-info/
