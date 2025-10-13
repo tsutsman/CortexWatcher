@@ -8,6 +8,7 @@ from typing import Iterable
 SYSLOG_HINT = re.compile(r"<\d+>[A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2}")
 GELF_HINT_KEYS = {"short_message", "full_message", "_id"}
 WAZUH_HINT_KEYS = {"rule", "agent", "decoder"}
+SURICATA_HINT_KEYS = {"event_type", "flow_id", "src_ip", "dest_ip", "alert"}
 
 
 def detect_format(sample: str | Iterable[str]) -> str:
@@ -30,6 +31,8 @@ def detect_format(sample: str | Iterable[str]) -> str:
             if isinstance(parsed, dict):
                 if any(key in parsed for key in WAZUH_HINT_KEYS):
                     return "wazuh"
+                if "event_type" in parsed and any(key in parsed for key in SURICATA_HINT_KEYS):
+                    return "suricata"
                 if any(key in parsed for key in GELF_HINT_KEYS):
                     return "gelf"
             return "json_lines"

@@ -32,7 +32,7 @@ def parse_json_lines(lines: str | Iterable[str]) -> List[JsonLineRecord]:
         except json.JSONDecodeError:
             continue
         record: JsonLineRecord = {
-            "timestamp": _extract_timestamp(payload),
+            "timestamp": coerce_timestamp(payload.get("timestamp") or payload.get("ts")),
             "host": payload.get("host"),
             "app": payload.get("app"),
             "severity": payload.get("severity"),
@@ -43,8 +43,7 @@ def parse_json_lines(lines: str | Iterable[str]) -> List[JsonLineRecord]:
     return records
 
 
-def _extract_timestamp(payload: dict) -> datetime | None:
-    value = payload.get("timestamp") or payload.get("ts")
+def coerce_timestamp(value: object) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
@@ -59,4 +58,4 @@ def _extract_timestamp(payload: dict) -> datetime | None:
     return None
 
 
-__all__ = ["parse_json_lines", "JsonLineRecord"]
+__all__ = ["parse_json_lines", "JsonLineRecord", "coerce_timestamp"]
