@@ -3,7 +3,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from cortexwatcher.parsers import detect_format, parse_gelf, parse_json_lines, parse_syslog, parse_wazuh_alert
+from cortexwatcher.parsers import (
+    detect_format,
+    parse_gelf,
+    parse_json_lines,
+    parse_suricata,
+    parse_syslog,
+    parse_wazuh_alert,
+)
 
 
 def test_detect_syslog() -> None:
@@ -34,4 +41,25 @@ def test_parse_wazuh() -> None:
     sample = '{"rule": {"id": "123", "level": 10}, "agent": {"name": "sensor"}, "timestamp": "2024-01-01T00:00:00Z"}'
     result = parse_wazuh_alert(sample)
     assert result[0]["rule_id"] == "123"
+
+
+def test_detect_suricata() -> None:
+    sample = '{"event_type": "alert", "src_ip": "10.0.0.1", "alert": {"signature": "Test"}}'
+    assert detect_format(sample) == "suricata"
+
+
+def test_parse_suricata() -> None:
+    sample = '\n'.join(
+        [
+            '{"timestamp": "2024-01-01T00:00:00Z", "event_type": "alert", "src_ip": "10.0.0.1", "dest_ip": "10.0.0.2", "alert": {"signature": "Malware", "severity": 1}}',
+            '{"event_timestamp": "2024-01-01T00:01:00Z", "event_type": "http", "http": {"http_method": "GET", "url": "http://example.com"}}',
+        ]
+    )
+    result = parse_suricata(sample)
+    assert len(result) == 2
+    assert result[0]["app"] == "suricata:alert"
+    assert result[0]["severity"] == "1"
+    assert result[0]["src_ip"] == "10.0.0.1"
+    assert result[0]["dest_ip"] == "10.0.0.2"
+    assert "GET" in result[1]["message"] or "http" in result[1]["message"]
 

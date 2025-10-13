@@ -11,7 +11,14 @@ from pydantic import BaseModel, Field
 from cortexwatcher.analyzer.correlate import build_correlation_key
 from cortexwatcher.config import get_settings
 from cortexwatcher.db.models import LogNormalized, LogRaw
-from cortexwatcher.parsers import detect_format, parse_gelf, parse_json_lines, parse_syslog, parse_wazuh_alert
+from cortexwatcher.parsers import (
+    detect_format,
+    parse_gelf,
+    parse_json_lines,
+    parse_suricata,
+    parse_syslog,
+    parse_wazuh_alert,
+)
 from cortexwatcher.storage.base import LogStorage
 
 router = APIRouter()
@@ -102,6 +109,8 @@ def _parse_by_format(fmt: str, content: str) -> list[dict[str, Any]]:
         return parse_json_lines(content)
     if fmt == "gelf":
         return parse_gelf(content)
+    if fmt == "suricata":
+        return parse_suricata(content)
     if fmt == "wazuh":
         return parse_wazuh_alert(content)
     return []
