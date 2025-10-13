@@ -156,6 +156,7 @@ async def _close_redis(client: AsyncRedis) -> None:
 
 
 def _safe_int(value: Any) -> int:
+    """Акуратно приводить значення до int, повертаючи 0 у разі помилки."""
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -163,6 +164,7 @@ def _safe_int(value: Any) -> int:
 
 
 def _decode_metrics(metrics_raw: dict[str, Any]) -> dict[str, Any]:
+    """Перетворює метрики з Redis у словник із числовими значеннями та дефолтами."""
     numeric_keys = {
         "events_total",
         "alerts_total",
@@ -182,6 +184,7 @@ def _decode_metrics(metrics_raw: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _calculate_rate(client: AsyncRedis, key: str, window_seconds: int) -> int:
+    """Оцінює кількість подій у ковзному вікні, використовуючи відбитки часу в ZSET."""
     now = time.time()
     cutoff = now - window_seconds
     try:
