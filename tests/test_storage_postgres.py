@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -37,7 +37,7 @@ async def storage(
 
 @pytest.mark.asyncio()
 async def test_postgres_storage_persists_logs_and_filters(storage: PostgresStorage) -> None:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     raw_first = LogRaw(
         source="api",
         received_at=now,
@@ -118,7 +118,7 @@ async def test_postgres_storage_persists_logs_and_filters(storage: PostgresStora
 
 @pytest.mark.asyncio()
 async def test_postgres_storage_alerts_and_anomalies(storage: PostgresStorage) -> None:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     alert = Alert(
         created_at=now,
         rule_id="rule-1",

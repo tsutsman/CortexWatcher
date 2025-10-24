@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, List, TypedDict
 
 
@@ -43,18 +43,27 @@ def parse_json_lines(lines: str | Iterable[str]) -> List[JsonLineRecord]:
     return records
 
 
+def _ensure_utc(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
+
 def coerce_timestamp(value: object) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
-        return datetime.utcfromtimestamp(float(value))
+        return datetime.fromtimestamp(float(value), tz=timezone.utc)
     if isinstance(value, str):
         try:
             from dateutil import parser as date_parser
 
-            return date_parser.parse(value)
+            parsed = date_parser.parse(value)
         except (ValueError, TypeError):
             return None
+        return _ensure_utc(parsed)
+    if isinstance(value, datetime):
+        return _ensure_utc(value)
     return None
 
 

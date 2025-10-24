@@ -44,6 +44,10 @@ def test_ingest_and_query() -> None:
     assert isinstance(body, list)
     assert body
 
+    naive_filter = client.get("/logs", params={"start": "1970-01-01T00:00:00"})
+    assert naive_filter.status_code == 200
+    assert naive_filter.json()
+
 
 def test_status_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     class DummyRedis:

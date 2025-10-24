@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from cortexwatcher.parsers.json_lines import coerce_timestamp
@@ -53,7 +53,7 @@ def parse_suricata(content: str) -> list[dict[str, Any]]:
             severity = str(alert["priority"])
 
         event_record: dict[str, Any] = {
-            "timestamp": timestamp or datetime.utcnow(),
+            "timestamp": timestamp or datetime.now(timezone.utc),
             "host": host,
             "app": f"suricata{(':' + event_type) if event_type else ''}",
             "severity": severity,

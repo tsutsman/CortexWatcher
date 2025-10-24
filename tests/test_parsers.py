@@ -1,7 +1,7 @@
 """Тести парсерів."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from cortexwatcher.parsers import (
     detect_format,
@@ -29,6 +29,7 @@ def test_parse_json_lines() -> None:
     result = parse_json_lines(sample)
     assert result[0]["app"] == "nginx"
     assert isinstance(result[0]["timestamp"], datetime)
+    assert result[0]["timestamp"].tzinfo == timezone.utc
 
 
 def test_parse_gelf() -> None:
@@ -61,5 +62,6 @@ def test_parse_suricata() -> None:
     assert result[0]["severity"] == "1"
     assert result[0]["src_ip"] == "10.0.0.1"
     assert result[0]["dest_ip"] == "10.0.0.2"
+    assert result[0]["timestamp"].tzinfo == timezone.utc
     assert "GET" in result[1]["message"] or "http" in result[1]["message"]
 

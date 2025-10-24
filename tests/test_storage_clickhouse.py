@@ -1,7 +1,7 @@
 """Тести для ClickHouseStorage (in-memory реалізація)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -12,7 +12,7 @@ from cortexwatcher.storage.clickhouse import ClickHouseStorage
 @pytest.mark.asyncio()
 async def test_clickhouse_storage_filters_and_sorting() -> None:
     storage = ClickHouseStorage("http://localhost")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     raw_first = LogRaw(
         source="api",
         received_at=now,
@@ -67,7 +67,7 @@ async def test_clickhouse_storage_filters_and_sorting() -> None:
 @pytest.mark.asyncio()
 async def test_clickhouse_storage_alerts_anomalies_and_attachment() -> None:
     storage = ClickHouseStorage("http://localhost")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     alert = Alert(
         created_at=now,
         rule_id="r1",

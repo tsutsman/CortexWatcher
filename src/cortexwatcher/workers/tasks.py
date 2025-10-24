@@ -53,7 +53,7 @@ async def _process_ingest(source: str, payload: dict[str, Any]) -> dict[str, Any
 
     fmt = detect_format(content)
     parsed = _parse(fmt, content)
-    received_at = datetime.utcnow()
+    received_at = datetime.now(timezone.utc)
     raw = LogRaw(
         source=source,
         received_at=received_at,
@@ -61,19 +61,22 @@ async def _process_ingest(source: str, payload: dict[str, Any]) -> dict[str, Any
         format=fmt,
         hash=_hash(content),
     )
-    normalized = [
-        LogNormalized(
-            raw_id=0,
-            ts=item.get("timestamp") or received_at,
-            host=item.get("host"),
-            app=item.get("app"),
-            severity=item.get("severity"),
-            msg=str(item.get("message") or item.get("msg") or ""),
-            meta_json=item,
-            correlation_key=build_correlation_key(item),
+    normalized = []
+    for item in parsed:
+        ts_raw = item.get("timestamp")
+        ts = _ensure_utc(ts_raw) if isinstance(ts_raw, datetime) else None
+        normalized.append(
+            LogNormalized(
+                raw_id=0,
+                ts=ts or received_at,
+                host=item.get("host"),
+                app=item.get("app"),
+                severity=item.get("severity"),
+                msg=str(item.get("message") or item.get("msg") or ""),
+                meta_json=item,
+                correlation_key=build_correlation_key(item),
+            )
         )
-        for item in parsed
-    ]
     await storage.store_raw_batch([raw])
     raw_id = getattr(raw, "id", None)
     for item in normalized:
@@ -101,16 +104,27 @@ def _parse(fmt: str, content: str) -> list[dict[str, Any]]:
     return []
 
 
+def _ensure_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _calculate_latencies(logs: Iterable[LogNormalized], received_at: datetime) -> list[float]:
     latencies: list[float] = []
+    reference = _ensure_utc(received_at)
+    if reference is None:
+        return latencies
     for log in logs:
         ts = getattr(log, "ts", None)
         if not isinstance(ts, datetime):
             continue
-        normalized_ts = ts
-        if ts.tzinfo is not None:
-            normalized_ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
-        latency_ms = (received_at - normalized_ts).total_seconds() * 1000
+        normalized_ts = _ensure_utc(ts)
+        if normalized_ts is None:
+            continue
+        latency_ms = (reference - normalized_ts).total_seconds() * 1000
         if latency_ms >= 0:
             latencies.append(latency_ms)
     return latencies
@@ -211,7 +225,7 @@ async def _evaluate_log(
         if rule.severity < settings.alert_min_level:
             continue
         alert = Alert(
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             rule_id=rule.id,
             level=rule.severity,
             title=rule.title,
@@ -224,7 +238,7 @@ async def _evaluate_log(
     anomaly, score = detector.update(log.host, log.app, log.severity, log.ts)
     if anomaly:
         anomaly_obj = Anomaly(
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             signal=f"{log.host}|{log.app}|{log.severity}",
             score=score,
             window=detector.window_minutes,

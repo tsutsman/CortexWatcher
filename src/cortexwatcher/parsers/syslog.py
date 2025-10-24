@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, List, TypedDict
 
 from dateutil import parser as date_parser
@@ -36,6 +36,12 @@ SEVERITY_MAP = {
 }
 
 
+def _ensure_utc(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
+
 def parse_syslog(lines: str | Iterable[str]) -> List[SyslogRecord]:
     """Парсить syslog у список словників."""
 
@@ -52,7 +58,7 @@ def parse_syslog(lines: str | Iterable[str]) -> List[SyslogRecord]:
         if match:
             pri = match.group("pri")
             severity = SEVERITY_MAP.get(int(pri) % 8) if pri else None
-            ts = date_parser.parse(match.group("ts"))
+            ts = _ensure_utc(date_parser.parse(match.group("ts")))
             record: SyslogRecord = {
                 "timestamp": ts,
                 "host": match.group("host"),
@@ -67,9 +73,11 @@ def parse_syslog(lines: str | Iterable[str]) -> List[SyslogRecord]:
         if match:
             pri = match.group("pri")
             severity = SEVERITY_MAP.get(int(pri) % 8) if pri else None
-            ts = date_parser.parse(match.group("ts"), default=datetime.utcnow())
+            now = datetime.now(timezone.utc)
+            ts = date_parser.parse(match.group("ts"), default=now)
+            ts = _ensure_utc(ts).replace(year=now.year)
             record = {
-                "timestamp": ts.replace(year=datetime.utcnow().year),
+                "timestamp": ts,
                 "host": match.group("host"),
                 "app": match.group("tag"),
                 "pid": match.group("pid"),
