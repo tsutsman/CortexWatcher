@@ -1,7 +1,7 @@
 """Ендпоінти запитів."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -9,6 +9,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from cortexwatcher.storage.base import LogStorage
 
 router = APIRouter()
+
+
+def _ensure_utc(ts: datetime | None) -> datetime | None:
+    if ts is None:
+        return None
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
 
 
 async def get_storage_from_app(request: Request) -> LogStorage:
@@ -30,7 +38,17 @@ async def list_logs(
     limit: int = Query(default=100, ge=1, le=1000),
     storage: LogStorage = Depends(get_storage_from_app),
 ) -> list[dict[str, Any]]:
-    items = await storage.list_logs(start=start, end=end, host=host, app=app, severity=severity, text=text, limit=limit)
+    start_utc = _ensure_utc(start)
+    end_utc = _ensure_utc(end)
+    items = await storage.list_logs(
+        start=start_utc,
+        end=end_utc,
+        host=host,
+        app=app,
+        severity=severity,
+        text=text,
+        limit=limit,
+    )
     return [
         {
             "id": item.id,

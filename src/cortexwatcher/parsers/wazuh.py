@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, TypedDict
 
 
@@ -34,6 +34,12 @@ def parse_wazuh_alert(payload: str | Dict[str, object]) -> List[WazuhRecord]:
     return []
 
 
+def _ensure_utc(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
+
 def _convert(entry: Dict[str, object]) -> WazuhRecord:
     rule = entry.get("rule") if isinstance(entry.get("rule"), dict) else {}
     agent = entry.get("agent") if isinstance(entry.get("agent"), dict) else {}
@@ -46,6 +52,10 @@ def _convert(entry: Dict[str, object]) -> WazuhRecord:
             ts = date_parser.parse(timestamp_raw)
         except (ValueError, TypeError):
             ts = None
+        else:
+            ts = _ensure_utc(ts)
+    elif isinstance(timestamp_raw, datetime):
+        ts = _ensure_utc(timestamp_raw)
     else:
         ts = None
     record: WazuhRecord = {

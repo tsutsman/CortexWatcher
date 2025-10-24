@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -22,6 +22,14 @@ from cortexwatcher.parsers import (
 from cortexwatcher.storage.base import LogStorage
 
 router = APIRouter()
+
+
+def _ensure_utc(ts: datetime | None) -> datetime | None:
+    if ts is None:
+        return None
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
 
 
 class IngestPayload(BaseModel):
@@ -60,7 +68,7 @@ async def ingest_logs(
     fmt = detect_format(content)
     parsed = _parse_by_format(fmt, content)
 
-    received_at = datetime.utcnow()
+    received_at = datetime.now(timezone.utc)
     raw = LogRaw(
         source=source,
         received_at=received_at,
@@ -68,19 +76,22 @@ async def ingest_logs(
         format=fmt,
         hash=hashlib.sha256(content.encode()).hexdigest(),
     )
-    normalized = [
-        LogNormalized(
-            raw_id=0,
-            ts=item.get("timestamp") or received_at,
-            host=item.get("host"),
-            app=item.get("app"),
-            severity=item.get("severity"),
-            msg=str(item.get("message") or item.get("msg") or ""),
-            meta_json=item,
-            correlation_key=build_correlation_key(item),
+    normalized: list[LogNormalized] = []
+    for item in parsed:
+        ts_raw = item.get("timestamp")
+        ts = _ensure_utc(ts_raw) if isinstance(ts_raw, datetime) else None
+        normalized.append(
+            LogNormalized(
+                raw_id=0,
+                ts=ts or received_at,
+                host=item.get("host"),
+                app=item.get("app"),
+                severity=item.get("severity"),
+                msg=str(item.get("message") or item.get("msg") or ""),
+                meta_json=item,
+                correlation_key=build_correlation_key(item),
+            )
         )
-        for item in parsed
-    ]
 
     await storage.store_raw_batch([raw])
     raw_id = getattr(raw, "id", None)

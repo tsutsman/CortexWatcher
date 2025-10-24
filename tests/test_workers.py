@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Iterable, Sequence
 
@@ -166,7 +166,7 @@ async def test_evaluate_log_creates_alert_and_anomaly(monkeypatch: pytest.Monkey
 
     log = LogNormalized(
         raw_id=1,
-        ts=datetime.utcnow(),
+        ts=datetime.now(timezone.utc),
         host="web",
         app="svc",
         severity="error",

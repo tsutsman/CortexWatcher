@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, TypedDict
 
 
@@ -48,11 +48,17 @@ def parse_gelf(payload: str | Dict[str, object]) -> List[GelfRecord]:
     return []
 
 
+def _ensure_utc(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
+
 def _convert_entry(entry: Dict[str, object]) -> GelfRecord:
     timestamp = entry.get("timestamp")
     ts: datetime | None
     if isinstance(timestamp, (float, int)):
-        ts = datetime.utcfromtimestamp(float(timestamp))
+        ts = datetime.fromtimestamp(float(timestamp), tz=timezone.utc)
     elif isinstance(timestamp, str):
         try:
             from dateutil import parser as date_parser
@@ -60,6 +66,10 @@ def _convert_entry(entry: Dict[str, object]) -> GelfRecord:
             ts = date_parser.parse(timestamp)
         except (ValueError, TypeError):
             ts = None
+        else:
+            ts = _ensure_utc(ts)
+    elif isinstance(timestamp, datetime):
+        ts = _ensure_utc(timestamp)
     else:
         ts = None
     level = entry.get("level")
