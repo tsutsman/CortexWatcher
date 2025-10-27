@@ -44,27 +44,20 @@
 - Відсутні автоматичні перевірки безпеки залежностей і секретів у репозиторії, попри вимоги до роботи з чутливими логами.【F:Makefile†L4-L48】
 
 ## 6. Дорожня карта розвитку
-### Етап 0 — стабілізація та технічний борг
 1. **Реалізувати повноцінний драйвер ClickHouse** або інтегрувати офіційну бібліотеку, забезпечивши персистентність та тестування запитів, оскільки нинішня заглушка не підходить для продакшн-навантажень.【F:src/cortexwatcher/storage/clickhouse.py†L11-L75】
 2. **Посилити пайплайн analyzer**: додати збереження стану оброблених логів, обмеження черги та метрики для затримок, щоб уникнути пропуску подій у циклі `run_analyzer_loop`.【F:src/cortexwatcher/workers/tasks.py†L119-L177】
 3. **Розширити автотести** покриттям сховищ (PostgreSQL/ClickHouse), воркерів і RateLimiter, використовуючи наявну інфраструктуру pytest, аби знизити ризик регресій у найкритичніших частинах пайплайна.【F:tests/test_api.py†L1-L144】【F:tests/test_parsers.py†L1-L36】
 4. **Впровадити обовʼязковий lint/typecheck/test у CI** і додати контроль покриття та сканування залежностей у Makefile/pipeline, що відповідає вимогам до безпеки платформи.【F:Makefile†L4-L48】【F:pyproject.toml†L34-L72】
-
-### Етап 1 — розширення збору та обробки даних
-1. **Додати валідацію вкладень і типів файлів у боті** (MIME, перевірка архівів, quarantine), щоби закрити ризики зловмисних payload-ів, а також асинхронну обробку великих файлів.【F:src/cortexwatcher/bot/handlers.py†L67-L98】
-2. **Розширити парсери/ingest** підтримкою додаткових форматів (наприклад, Zeek, Suricata), використовуючи існуючий механізм `detect_format` і `_parse_by_format`, щоб покрити більше джерел без зміни API.【F:src/cortexwatcher/api/routers/ingest.py†L53-L107】
-3. **Запровадити редактор правил та їх валідацію** перед завантаженням у `RuleEngine`, включно з тестами на конфлікти/синтаксис, щоб спростити оновлення YAML без перезапуску сервісу.【F:src/cortexwatcher/analyzer/rules_engine.py†L34-L89】
-4. **Нормалізувати схему зберігання**: додати індекси/пошук (PG Trigram/GIN) і DTO версіонування для API `/logs`, підготувавши основу для зовнішніх інтеграцій та оптимізації запитів.【F:src/cortexwatcher/db/models.py†L33-L52】【F:src/cortexwatcher/api/routers/query.py†L21-L46】
-
-### Етап 2 — спостережність та UX
-1. **Розширити `/status` і метрики** додатковими показниками (latency ingestion, розмір черг, rate алертів) та побудувати Grafana-дашборди для SOC/SRE команд на базі Prometheus-лічильників.【F:src/cortexwatcher/api/routers/health.py†L26-L134】【F:src/cortexwatcher/api/routers/metrics.py†L9-L20】
-2. **Створити веб-UI або інтеграцію з Grafana/Streamlit** для перегляду логів, алертів і аномалій, спираючись на існуючі REST-ендпоінти `/logs`, `/alerts`, `/anomalies` та `/status`.【F:src/cortexwatcher/api/routers/query.py†L21-L86】【F:src/cortexwatcher/api/routers/health.py†L26-L47】
-3. **Додати багатоканальні нотифікації** (Slack, email) у `AlertNotifier` з можливістю ack/auto-close, розширивши наявну логіку Telegram-розсилки, щоби збільшити застосовність для команд без Telegram.【F:src/cortexwatcher/analyzer/notifier.py†L8-L36】
-4. **Документувати оперативні плейбуки та процес оновлення правил** (підписи, контроль версій), використавши існуючий README як базу та доповнивши інформацією про релізний цикл і управління секретами.【F:README.md†L17-L47】
-
-### Етап 3 — інтелектуальна аналітика
-1. **Покращити аномалії**: додати адаптивні пороги, підтримку сезонності та збереження історії сигналів у БД, розширивши можливості `AnomalyDetector` і моделі `Anomaly` для складніших сценаріїв SOC.【F:src/cortexwatcher/analyzer/anomalies.py†L16-L56】【F:src/cortexwatcher/db/models.py†L70-L80】
-2. **Побудувати систему пріоритизації алертів** з урахуванням контексту (частота, критичність сервісу, джерело), розширивши структуру `Alert` та відповіді `/alerts` додатковими полями ризику.【F:src/cortexwatcher/db/models.py†L55-L68】【F:src/cortexwatcher/api/routers/query.py†L49-L67】
-3. **Автоматизувати enrichment** логів (GeoIP, дані про користувачів/сервіси) у пайплайні ingestor, використовуючи перетворення перед збереженням у `LogNormalized`, що підвищить якість аналітики без ручної обробки.【F:src/cortexwatcher/api/routers/ingest.py†L64-L83】【F:src/cortexwatcher/workers/tasks.py†L61-L80】
+5. **Додати валідацію вкладень і типів файлів у боті** (MIME, перевірка архівів, quarantine), щоби закрити ризики зловмисних payload-ів, а також асинхронну обробку великих файлів.【F:src/cortexwatcher/bot/handlers.py†L67-L98】
+6. **Розширити парсери/ingest** підтримкою додаткових форматів (наприклад, Zeek, Suricata), використовуючи існуючий механізм `detect_format` і `_parse_by_format`, щоб покрити більше джерел без зміни API.【F:src/cortexwatcher/api/routers/ingest.py†L53-L107】
+7. **Запровадити редактор правил та їх валідацію** перед завантаженням у `RuleEngine`, включно з тестами на конфлікти/синтаксис, щоб спростити оновлення YAML без перезапуску сервісу.【F:src/cortexwatcher/analyzer/rules_engine.py†L34-L89】
+8. **Нормалізувати схему зберігання**: додати індекси/пошук (PG Trigram/GIN) і DTO версіонування для API `/logs`, підготувавши основу для зовнішніх інтеграцій та оптимізації запитів.【F:src/cortexwatcher/db/models.py†L33-L52】【F:src/cortexwatcher/api/routers/query.py†L21-L46】
+9. **Розширити `/status` і метрики** додатковими показниками (latency ingestion, розмір черг, rate алертів) та побудувати Grafana-дашборди для SOC/SRE команд на базі Prometheus-лічильників.【F:src/cortexwatcher/api/routers/health.py†L26-L134】【F:src/cortexwatcher/api/routers/metrics.py†L9-L20】
+10. **Створити веб-UI або інтеграцію з Grafana/Streamlit** для перегляду логів, алертів і аномалій, спираючись на існуючі REST-ендпоінти `/logs`, `/alerts`, `/anomalies` та `/status`.【F:src/cortexwatcher/api/routers/query.py†L21-L86】【F:src/cortexwatcher/api/routers/health.py†L26-L47】
+11. **Додати багатоканальні нотифікації** (Slack, email) у `AlertNotifier` з можливістю ack/auto-close, розширивши наявну логіку Telegram-розсилки, щоби збільшити застосовність для команд без Telegram.【F:src/cortexwatcher/analyzer/notifier.py†L8-L36】
+12. **Документувати оперативні плейбуки та процес оновлення правил** (підписи, контроль версій), використавши існуючий README як базу та доповнивши інформацією про релізний цикл і управління секретами.【F:README.md†L17-L47】
+13. **Покращити аномалії**: додати адаптивні пороги, підтримку сезонності та збереження історії сигналів у БД, розширивши можливості `AnomalyDetector` і моделі `Anomaly` для складніших сценаріїв SOC.【F:src/cortexwatcher/analyzer/anomalies.py†L16-L56】【F:src/cortexwatcher/db/models.py†L70-L80】
+14. **Побудувати систему пріоритизації алертів** з урахуванням контексту (частота, критичність сервісу, джерело), розширивши структуру `Alert` та відповіді `/alerts` додатковими полями ризику.【F:src/cortexwatcher/db/models.py†L55-L68】【F:src/cortexwatcher/api/routers/query.py†L49-L67】
+15. **Автоматизувати enrichment** логів (GeoIP, дані про користувачів/сервіси) у пайплайні ingestor, використовуючи перетворення перед збереженням у `LogNormalized`, що підвищить якість аналітики без ручної обробки.【F:src/cortexwatcher/api/routers/ingest.py†L64-L83】【F:src/cortexwatcher/workers/tasks.py†L61-L80】
 
 Ця аналітика та дорожня карта задають пріоритети для переходу CortexWatcher від MVP до готового до промислового використання рішення з підсиленими можливостями, якістю та спостережністю.
