@@ -33,6 +33,15 @@ def enqueue_ingest(source: str, payload: dict[str, Any], immediate: bool = False
         if source == "status":
             return _status_snapshot()
         return asyncio.run(_process_ingest(source, payload))
+
+    # Перевірка довжини черги для backpressure
+    max_queue_size = 10000
+    try:
+        if queue.count >= max_queue_size:
+            return {"error": "Queue full", "rejected": True}
+    except RedisError:
+        pass  # Продовжуємо, якщо не можемо перевірити
+
     job = queue.enqueue(process_ingest_job, source, payload)
     return {"job_id": job.id}
 
@@ -194,14 +203,36 @@ async def run_analyzer_loop() -> None:
     engine = RuleEngine(settings.rules_path)
     notifier = AlertNotifier(storage)
     detector = AnomalyDetector(window_minutes=settings.anomaly_window_min)
-    processed: set[int] = set()
+
+    processed_key = "cortexwatcher:analyzer:processed_logs"
+    ttl_seconds = 86400  # 24 години
+    cleanup_interval = 300  # 5 хвилин
+    last_cleanup = time()
+
     while True:
-        logs = await storage.list_logs(limit=200)
+        now_ts = time()
+        # Очищення старих записів
+        if now_ts - last_cleanup > cleanup_interval:
+            try:
+                redis_conn.zremrangebyscore(processed_key, 0, now_ts - ttl_seconds)
+                last_cleanup = now_ts
+            except RedisError:
+                pass
+
+        logs = await storage.list_logs(limit=500)
         for log in logs:
-            if log.id in processed:
-                continue
-            processed.add(log.id)
+            try:
+                # Додаємо лог у Redis sorted set з NX (тільки якщо не існує)
+                added = redis_conn.zadd(processed_key, {log.id: now_ts}, nx=True)
+                if added == 0:
+                    # Лог вже оброблявся, пропускаємо
+                    continue
+            except RedisError:
+                # Якщо Redis недоступний, все одно обробляємо (fail-open)
+                pass
+
             await _evaluate_log(storage, engine, notifier, detector, log)
+
         await asyncio.sleep(10)
 
 

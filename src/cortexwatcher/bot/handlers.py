@@ -72,7 +72,7 @@ async def _handle_document(message: Message, document: Document) -> None:
         await message.reply("Файл завеликий. Максимум 20 МБ.")
         return
     file = await message.bot.download(document)
-    content = file.read()
+    content = await asyncio.to_thread(file.read)
     try:
         await validate_document(document, content)
     except AttachmentValidationError as error:
