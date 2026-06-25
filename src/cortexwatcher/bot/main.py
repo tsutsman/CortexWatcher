@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from cortexwatcher.bot.commands import setup_commands
@@ -17,7 +18,10 @@ async def main() -> None:
 
     configure_logging()
     settings = get_settings()
-    bot = Bot(token=settings.tg_bot_token, parse_mode=ParseMode.MARKDOWN)
+    bot = Bot(
+        token=settings.tg_bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
+    )
     dp = Dispatcher()
     dp.include_router(router)
     await setup_commands(bot)
